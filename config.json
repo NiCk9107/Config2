@@ -1,0 +1,5 @@
+{
+  "package_name": "my-awesome-package",
+  "repository": "https://github.com/example/repo.git",
+  "mode": "remote"
+}
