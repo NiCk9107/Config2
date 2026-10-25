@@ -1,5 +1,5 @@
 {
-  "package_name": "my-awesome-package",
-  "repository": "https://github.com/example/repo.git",
+  "package_name": "express",
+  "repository": "https://github.com/expressjs/express/tree/master",
   "mode": "remote"
 }
