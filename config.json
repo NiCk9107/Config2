@@ -1,5 +1,5 @@
 {
-  "package_name": "express",
-  "repository": "https://github.com/expressjs/express/tree/master",
-  "mode": "remote"
+  "package_name": "A",
+  "repository": "test_data/simple.json",
+  "mode": "local"
 }

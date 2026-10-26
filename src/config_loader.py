@@ -4,8 +4,11 @@ import os
 from typing import Any, Dict
 
 MAX_NAME_LENGTH = 100
-VALID_MODES = ("local", "remote")
+LOCAL_MODE = "local"
+REMOTE_MODE = "remote"
+VALID_MODES = (LOCAL_MODE, REMOTE_MODE)
 REQUIRED_FIELDS = ("package_name", "repository", "mode")
+GITHUB_HOST = "github.com"
 
 
 class ConfigError(Exception):
@@ -41,7 +44,7 @@ class ConfigLoader:
             raise ConfigError(msg)
 
         try:
-            with open(self.config_path, 'r', encoding='utf-8') as file:
+            with open(self.config_path, "r", encoding="utf-8") as file:
                 self.config = json.load(file)
         except json.JSONDecodeError as error:
             raise ConfigError(f"Ошибка парсинга JSON: {error}")
@@ -56,8 +59,8 @@ class ConfigLoader:
                 raise ConfigError(f"Отсутствует поле: {field}")
 
         self._validate_package_name()
-        self._validate_repository()
         self._validate_mode()
+        self._validate_repository()
 
     def _validate_package_name(self) -> None:
         """Валидация имени пакета."""
@@ -70,23 +73,6 @@ class ConfigLoader:
             msg = f"package_name слишком длинный (макс. {MAX_NAME_LENGTH})"
             raise ConfigError(msg)
 
-    def _validate_repository(self) -> None:
-        """Валидация пути или URL репозитория."""
-        repo = self.config["repository"]
-        if not isinstance(repo, str):
-            raise ConfigError("repository должен быть строкой")
-        if not repo.strip():
-            raise ConfigError("repository не может быть пустым")
-
-        is_url = repo.startswith(("http://", "https://", "git://"))
-        is_path = os.path.exists(repo) or repo.startswith(
-            ("/", "./", "../", "~")
-        )
-
-        if not is_url and not is_path:
-            msg = f"Невалидный repository: {repo}"
-            raise ConfigError(msg)
-
     def _validate_mode(self) -> None:
         """Валидация режима работы."""
         mode = self.config["mode"]
@@ -95,3 +81,45 @@ class ConfigLoader:
         if mode not in VALID_MODES:
             modes_str = ", ".join(VALID_MODES)
             raise ConfigError(f"mode должен быть: {modes_str}")
+
+    def _validate_repository(self) -> None:
+        """Валидация repository с учётом режима работы."""
+        repo = self.config["repository"]
+        if not isinstance(repo, str):
+            raise ConfigError("repository должен быть строкой")
+        if not repo.strip():
+            raise ConfigError("repository не может быть пустым")
+
+        if self.config["mode"] == LOCAL_MODE:
+            self._validate_local_repo(repo)
+        else:
+            self._validate_remote_repo(repo)
+
+    def _validate_local_repo(self, repo: str) -> None:
+        """
+        Валидация пути к файлу тестового репозитория.
+
+        Args:
+            repo: Путь к файлу описания графа.
+
+        Raises:
+            ConfigError: Если файл не существует.
+        """
+        if not os.path.isfile(repo):
+            raise ConfigError(f"Файл тестового репозитория не найден: {repo}")
+
+    def _validate_remote_repo(self, repo: str) -> None:
+        """
+        Валидация URL GitHub-репозитория.
+
+        Args:
+            repo: URL репозитория.
+
+        Raises:
+            ConfigError: Если URL невалиден.
+        """
+        if not repo.startswith(("http://", "https://")):
+            raise ConfigError("repository должен быть HTTP(S) URL")
+        if GITHUB_HOST not in repo:
+            msg = f"repository должен указывать на {GITHUB_HOST}"
+            raise ConfigError(msg)
