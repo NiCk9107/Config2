@@ -1,0 +1,5 @@
+{
+  "package_name": "http-errors",
+  "repository": "https://github.com/jshttp/http-errors",
+  "mode": "remote"
+}
