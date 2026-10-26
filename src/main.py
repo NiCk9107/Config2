@@ -10,9 +10,10 @@ from .package_parser import (
     PackageParseError,
 )
 from .graph import DependencyGraph
-from .graph_builder import build_graph
+from .graph_builder import build_graph, FetchFunc
 from .test_repo import load_test_repo, make_fetcher, TestRepoError
 from .registry_parser import make_remote_fetcher, RegistryError
+from .load_order import bfs_load_order, topological_load_order
 
 
 def print_config(config: dict) -> None:
@@ -61,30 +62,60 @@ def print_cycles(graph: DependencyGraph) -> None:
         print("  " + " -> ".join(cycle))
 
 
-def process_local(config: dict) -> int:
+def print_load_order(
+    graph: DependencyGraph,
+    root: str,
+    fetcher: FetchFunc,
+) -> None:
+    """
+    Вывод порядка загрузки зависимостей (BFS и топологический).
+
+    Args:
+        graph: Построенный граф зависимостей.
+        root: Имя корневого пакета.
+        fetcher: Функция получения зависимостей пакета.
+    """
+    bfs_order = bfs_load_order(root, fetcher)
+    print("\nПорядок загрузки (BFS, порядок обнаружения):")
+    print("  " + " -> ".join(bfs_order))
+
+    topo_order = topological_load_order(graph)
+    if not topo_order:
+        print("\nТопологический порядок: не определён (в графе циклы)")
+        return
+    print("\nПорядок загрузки (топологический, зависимости первыми):")
+    print("  " + " -> ".join(topo_order))
+
+
+def process_local(config: dict, show_order: bool) -> int:
     """
     Обработка тестового репозитория (режим local).
 
     Args:
         config: Словарь с параметрами конфигурации.
+        show_order: Флаг вывода порядка загрузки.
 
     Returns:
         Код возврата (0 — успех).
     """
     repo = load_test_repo(config["repository"])
     fetcher = make_fetcher(repo)
-    graph = build_graph(config["package_name"], fetcher)
+    root = config["package_name"]
+    graph = build_graph(root, fetcher)
     print_graph(graph)
     print_cycles(graph)
+    if show_order:
+        print_load_order(graph, root, fetcher)
     return 0
 
 
-def process_remote(config: dict) -> int:
+def process_remote(config: dict, show_order: bool) -> int:
     """
     Обработка реального репозитория (режим remote).
 
     Args:
         config: Словарь с параметрами конфигурации.
+        show_order: Флаг вывода порядка загрузки.
 
     Returns:
         Код возврата (0 — успех).
@@ -94,9 +125,12 @@ def process_remote(config: dict) -> int:
     data = fetch_with_fallback(owner, repo_name, branch)
     root_deps = {config["package_name"]: extract_dependencies(data)}
     fetcher = make_remote_fetcher(root_deps)
-    graph = build_graph(config["package_name"], fetcher)
+    root = config["package_name"]
+    graph = build_graph(root, fetcher)
     print_graph(graph)
     print_cycles(graph)
+    if show_order:
+        print_load_order(graph, root, fetcher)
     return 0
 
 
@@ -115,6 +149,11 @@ def main() -> int:
         default="config.json",
         help="Путь к файлу конфигурации"
     )
+    parser.add_argument(
+        "--show-order",
+        action="store_true",
+        help="Вывести порядок загрузки зависимостей"
+    )
 
     args = parser.parse_args()
 
@@ -123,8 +162,8 @@ def main() -> int:
         config = loader.load()
         print_config(config)
         if config["mode"] == LOCAL_MODE:
-            return process_local(config)
-        return process_remote(config)
+            return process_local(config, args.show_order)
+        return process_remote(config, args.show_order)
     except ConfigError as error:
         print(f"\nОшибка конфигурации: {error}", file=sys.stderr)
         return 1
